@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -8,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/gocolly/colly"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // Define the LastTenDirectorsDealings struct
@@ -22,6 +25,27 @@ type LastTenDirectorsDealings struct {
 }
 
 func main() {
+
+	// MongoDB Atlas connection settings
+	mongoURI := "mongodb+srv://<user>:<password>@<collection>.mongodb.net/<database>retryWrites=true&w=majority"
+
+	// Connect to MongoDB Atlas
+	client, err := mongo.NewClient(options.Client().ApplyURI(mongoURI))
+	if err != nil {
+		log.Fatalf("Failed to create MongoDB client: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10)
+	defer cancel()
+	err = client.Connect(ctx)
+	if err != nil {
+		log.Fatalf("Failed to connect to MongoDB Atlas: %v", err)
+	}
+	defer client.Disconnect(ctx)
+
+	// Access the database and collection
+	db := client.Database("<database>")
+	collection := db.Collection("<collection>")
+
 	// Instantiate default collector
 	c := colly.NewCollector(
 		// Visit only domains: moneyweb.co.za, www.moneyweb.co.za
@@ -79,6 +103,12 @@ func main() {
 				jsonData, err := json.Marshal(dealings)
 				if err != nil {
 					log.Fatalf("Failed to marshal JSON: %v", err)
+				}
+
+				// Insert the data into MongoDB
+				_, err = collection.InsertOne(ctx, dealings)
+				if err != nil {
+					log.Fatalf("Failed to insert data into MongoDB: %v", err)
 				}
 
 				// Print the extracted data in JSON format
